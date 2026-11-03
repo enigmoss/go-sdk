@@ -301,7 +301,7 @@ func TestContextCancelledBeforeSending(t *testing.T) {
 // TestRealTransportSendPhase checks httptrace with the real transport: a refused
 // connection is not sent, a connection dropped after the request is.
 func TestRealTransportSendPhase(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -549,7 +549,10 @@ func TestPagination(t *testing.T) {
 
 	// break stops the requests.
 	before := len(f.recorded())
-	for range c.Payments.All(ctx, nil) {
+	for _, err := range c.Payments.All(ctx, nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
 		break
 	}
 	if len(f.recorded()) != before+1 {

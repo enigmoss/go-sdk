@@ -2,6 +2,7 @@ package enigmoss
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,7 @@ import (
 const webhookBody = `{"event":"payment.paid","event_id":"019b7710-0000-7000-8000-000000000001","created_at":"2026-01-01T03:05:00+03:00","data":` + fxPaidPayment + `}`
 
 func webhookRequest(body string, header http.Header) *http.Request {
-	r := httptest.NewRequest(http.MethodPost, "/webhooks", strings.NewReader(body))
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/webhooks", strings.NewReader(body))
 	r.Header = header
 	return r
 }
@@ -57,7 +58,11 @@ func TestParseWebhookRejects(t *testing.T) {
 	}{
 		{"no headers", webhookBody, func() http.Header { return http.Header{} }, []string{testPaymentKey}, "no X-Project-Uuid, X-Timestamp, X-Signature header"},
 		{"no signature", webhookBody, func() http.Header { h := signed(); h.Del("X-Signature"); return h }, []string{testPaymentKey}, "no X-Signature header"},
-		{"another project", webhookBody, func() http.Header { h := signed(); h.Set("X-Project-Uuid", "d6a7f0c2-6b1e-4b9a-9f3e-2c4d5e6f7a8b"); return h }, []string{testPaymentKey}, "another project"},
+		{"another project", webhookBody, func() http.Header {
+			h := signed()
+			h.Set("X-Project-Uuid", "d6a7f0c2-6b1e-4b9a-9f3e-2c4d5e6f7a8b")
+			return h
+		}, []string{testPaymentKey}, "another project"},
 		{"expired", webhookBody, func() http.Header {
 			h := http.Header{}
 			ts := strconv.FormatInt(time.Now().Unix()-301, 10)
