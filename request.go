@@ -169,6 +169,12 @@ func (c *core) do(ctx context.Context, cl call) (*response, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, p := range cl.params {
+		// A dot segment could be resolved by a proxy into another endpoint.
+		if p == "" || p == "." || p == ".." {
+			return nil, fmt.Errorf("enigmoss: %q is not a valid path parameter", p)
+		}
+	}
 	requestURI := buildRequestURI(ep, cl.params, cl.query)
 	u, err := url.Parse(c.origin + requestURI)
 	if err != nil || u.RequestURI() != requestURI {

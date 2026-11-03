@@ -417,6 +417,8 @@ func TestLocalErrorsAreNotSent(t *testing.T) {
 	_, cases["event"] = c.Events.List(ctx, &EventQuery{Event: "paid"})
 	_, cases["discount"] = c.PaymentMethods.UpdateDiscount(ctx, "USDT", "tron", 91)
 	_, cases["missing key"] = paymentOnly.Payouts.Create(ctx, payoutParams)
+	_, cases["dot segment"] = c.PaymentMethods.UpdateDiscount(ctx, "..", "tron", 5)
+	_, cases["empty segment"] = c.PayoutMethods.Get(ctx, "USDT", "")
 	for name, err := range cases {
 		var e *Error
 		if err == nil || errors.As(err, &e) || OutcomeUnknown(err) || !strings.HasPrefix(err.Error(), "enigmoss: ") {
