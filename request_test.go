@@ -391,6 +391,15 @@ func TestErrorMessages(t *testing.T) {
 	}
 }
 
+func TestRetryAfterIsExposed(t *testing.T) {
+	c, _, _ := scriptedClient(t, step{status: 429, code: CodeRateLimitExceeded, header: "51"})
+	_, err := c.Payouts.Create(context.Background(), payoutParams)
+	var e *Error
+	if !errors.As(err, &e) || e.RetryAfter != 51*time.Second {
+		t.Fatalf("err %#v", err)
+	}
+}
+
 func TestValidationFields(t *testing.T) {
 	c, _, _ := scriptedClient(t, step{status: 422, body: `{"error":{"type":"validation_error","code":"validation.failed","message":"Invalid.","retryable":false,` +
 		`"violations":[{"field":"amount","rule":"min","message":"Too small."},{"field":"amount","rule":"x","message":"Bad."},{"field":null,"rule":"custom","message":"Whole request."}]},"meta":{"request_id":"r"}}`})

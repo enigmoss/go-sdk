@@ -90,8 +90,9 @@ default:
 ```
 
 The SDK has already retried what was safe to retry. Every error that reached the network is an
-`*enigmoss.Error` with `Status`, `Code`, `Message`, `RequestID` and validation `Fields`; switch on
-`Code` (`enigmoss.CodePayoutInsufficientFunds` and others), never on the message.
+`*enigmoss.Error` with `Status`, `Code`, `Message`, `RequestID`, validation `Fields` and
+`RetryAfter` (rate limits); switch on `Code` (`enigmoss.CodePayoutInsufficientFunds` and
+others), never on the message.
 
 ## Payouts belong in a worker
 

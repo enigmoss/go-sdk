@@ -6,6 +6,8 @@ All notable changes to this module are documented here. The format follows
 
 ## [Unreleased]
 
+- `Error.RetryAfter`: how long the server asked to wait (Retry-After) on a rate limit.
+
 ## [0.1.0]
 
 First beta of the Go SDK of the Project API v4.

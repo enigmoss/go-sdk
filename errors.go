@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Error is every error of a request that reached the network: an error response of the
@@ -31,6 +32,9 @@ type Error struct {
 	// Fields maps a request field to its validation error, for Code "validation.failed".
 	// The key "" is an error of the whole request.
 	Fields map[string]string
+	// RetryAfter is how long the server asked to wait before repeating the request
+	// (Retry-After), 0 when it sent none. Set on rate limits, Code "rate_limit.exceeded".
+	RetryAfter time.Duration
 
 	cause         error
 	unknown       bool // the request may have been executed
@@ -181,6 +185,7 @@ func mapError(res *http.Response, raw []byte) *Error {
 	if v := strings.TrimSpace(res.Header.Get("Retry-After")); retryAfterPattern.MatchString(v) {
 		e.retryAfter, _ = strconv.Atoi(v)
 		e.hasRetryAfter = true
+		e.RetryAfter = time.Duration(e.retryAfter) * time.Second
 	}
 
 	var envelope struct {
@@ -215,6 +220,7 @@ func mapError(res *http.Response, raw []byte) *Error {
 	if n, ok := envelope.Meta["retry_after"].(json.Number); ok {
 		if v, err := strconv.Atoi(n.String()); err == nil {
 			e.retryAfter, e.hasRetryAfter = v, true
+			e.RetryAfter = time.Duration(v) * time.Second
 		}
 	}
 	e.Fields = violations(env.Violations)
