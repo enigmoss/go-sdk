@@ -1,0 +1,62 @@
+{
+    "_comment": "Idempotency-Key derived by the SDKs for create requests, recorded from the PHP SDK. Every SDK must derive the same keys, so switching SDKs in the middle of retries never creates a duplicate. Values never change: a new case gets a new vector with a new name.",
+    "version": 1,
+    "algorithm": "\"sdk1-\" + first 59 lowercase hex characters of sha256(path + \"\\n\" + order_id)",
+    "path_format": "request path starting with /api/v4, plus the query string exactly as signed when there is one",
+    "vectors": [
+        {
+            "name": "payments-create",
+            "path": "/api/v4/payments",
+            "order_id": "order-42",
+            "key": "sdk1-55fdd8c6b823fca6609d1a0128773fabdb7d34f8333428f4c21b0c5d1ff"
+        },
+        {
+            "name": "wallets-create",
+            "path": "/api/v4/wallets",
+            "order_id": "customer-7",
+            "key": "sdk1-85b75185ac6ddf6236ed18a3ed58ad1de9b27b47e04e499c5dcdeb20f52"
+        },
+        {
+            "name": "payouts-create",
+            "path": "/api/v4/payouts",
+            "order_id": "withdrawal-42",
+            "key": "sdk1-84622c7ee70dcba22e9050c64e85df723cd3f0ca736bfa61809b207c8ec"
+        },
+        {
+            "name": "transfers-create",
+            "path": "/api/v4/transfers",
+            "order_id": "transfer-1",
+            "key": "sdk1-a08d15a4d3ea93c4c878c8428b25c8291d22091097908b3c92af2dbbfa0"
+        },
+        {
+            "name": "payment-refunds-create",
+            "path": "/api/v4/payments/7c9e6679-7425-40de-944b-e07fc1f90ae7/refunds",
+            "order_id": "refund-42",
+            "key": "sdk1-a41ec4af40864126d8b500bb020d5d6bae5d49cde427d9c64b9de8fe598"
+        },
+        {
+            "name": "wallet-refunds-create",
+            "path": "/api/v4/wallets/0f8fad5b-d9cb-469f-a165-70867728950e/refunds",
+            "order_id": "refund-wallet-7",
+            "key": "sdk1-8e4d02f8e97fe0c0682d88ce93465b4d510db055f4a3cfb19260fac743a"
+        },
+        {
+            "name": "same-order-id-other-path",
+            "path": "/api/v4/transfers",
+            "order_id": "withdrawal-42",
+            "key": "sdk1-2e5e132198cbe8f98e97e451a881b61723753d5a9f19545376ad7febe18"
+        },
+        {
+            "name": "order-id-max-length",
+            "path": "/api/v4/payouts",
+            "order_id": "Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-Ab9_-xyz",
+            "key": "sdk1-ab4fafa05483c6111e2a2c08d69e6df40c4381ef1be9bfa804c3915b91f"
+        },
+        {
+            "name": "path-with-query",
+            "path": "/api/v4/payouts?expand=charged&limit=10",
+            "order_id": "withdrawal-42",
+            "key": "sdk1-7038f84396e1e92371610442435b3f05be3ff9861f2d8fb3548efd5f9e3"
+        }
+    ]
+}
