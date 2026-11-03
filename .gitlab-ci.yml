@@ -1,0 +1,58 @@
+# CI of github.com/enigmoss/enigmoss-go: the same commands as .github/workflows.
+
+stages: [quality, test, release]
+
+variables:
+  GOFLAGS: "-modcacherw"
+  GOPATH: "$CI_PROJECT_DIR/.go"
+
+cache:
+  key: go
+  paths: [.go/pkg/mod/]
+
+.go:
+  image: golang:${GO}
+
+quality:
+  extends: .go
+  stage: quality
+  variables: { GO: "1.27" }
+  script:
+    - test -z "$(gofmt -l $(git ls-files '*.go'))"
+    - go vet ./...
+    - go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+    - go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
+    - go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+    - test -z "$(go list -m all | grep -v '^github.com/enigmoss/enigmoss-go$')"
+    - go test -run '^$' -fuzz FuzzWebhook -fuzztime 30s .
+
+hygiene:
+  image: alpine:3.22
+  stage: quality
+  script:
+    # The word is spelled in two parts so that this file passes its own check; LICENSE is
+    # excluded for the standard MIT wording.
+    # INTERNAL_NAMES: a CI/CD variable with an extended regular expression of internal names.
+    - 'if grep -rniI --exclude-dir=.git --exclude-dir=.go --exclude=LICENSE -e "mer""chant" .; then exit 1; fi'
+    - 'if [ -n "$INTERNAL_NAMES" ] && grep -rniIE --exclude-dir=.git --exclude-dir=.go -e "$INTERNAL_NAMES" .; then exit 1; fi'
+
+tests:
+  extends: .go
+  stage: test
+  parallel:
+    matrix:
+      - GO: ["1.24", "1.25", "1.26", "1.27"]
+  script:
+    - go test -race ./...
+
+release:
+  extends: .go
+  stage: release
+  variables: { GO: "1.27" }
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+  script:
+    # The tag must equal enigmoss.Version: it is the version sent in the User-Agent.
+    - version="$(sed -n 's/^const Version = "\(.*\)"$/\1/p' client.go)"
+    - test "v${version}" = "${CI_COMMIT_TAG}"
+    - go test -race ./...

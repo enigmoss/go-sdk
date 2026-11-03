@@ -1,0 +1,79 @@
+# Enigmoss Go SDK (github.com/enigmoss/enigmoss-go), for AI coding assistants
+Package enigmoss. Go >= 1.24, standard library only. Project API v4. Docs: README.md, docs/*.md, `go doc github.com/enigmoss/enigmoss-go`.
+Find this file in the module cache: $(go list -m -f '{{.Dir}}' github.com/enigmoss/enigmoss-go)/docs/llms.txt
+
+## Rules that must not be broken
+- Money is ALWAYS a decimal string ("10.50"), never float64. The SDK sends and returns amounts as is. Times are time.Time in UTC; zero = absent.
+- Base URL is white-label: the API host from the dashboard; placeholder https://api.example.com. The SDK appends /api/v4. https only.
+- PAYMENT key: payments, wallets, AML links, balances, transactions, PaymentMethods.UpdateDiscount, events, Webhooks.SendTest, and VERIFYING ALL WEBHOOKS (payout.* and refund.* too). PAYOUT key: payouts, quotes, refunds, transfers (IP whitelist applies). EITHER: Project.Get, PaymentMethods.List, PayoutMethods, ExchangeRates. A call without its key fails before sending: "payouts need the payout key: pass enigmoss.WithPayoutKey".
+- One order_id = one object FOREVER (a failed payout keeps its order_id). Creates derive the Idempotency-Key from order_id: a repeat returns the stored object (24 h).
+- Three outcomes of every create, nothing else: err == nil created | OutcomeUnknown(err) maybe created: keep "pending", reconcile later with FindByOrderID, NEVER a new order_id | IsOrderIDTaken(err) exists: FindByOrderID | other error: NOT created, fix the cause, retry with the SAME order_id.
+- Check OutcomeUnknown BEFORE IsOrderIDTaken. Do not retry a create in a loop yourself: the SDK already retries when it is safe.
+- Payouts and refunds may take up to 180 s per attempt: call them from a background worker with ctx >= 10 min, never from an HTTP handler. http.Client.Timeout must be >= 180 s or 0.
+- Fulfilment rule (the ONLY one): payment.IsSuccessful() (paid or overpaid AND IsFinal). A static wallet deposit has WalletID != "" and OrderID == "": branch on IsDeposit() first.
+- Statuses are string types with constants; the server may add values: always keep a default branch; decide by IsFinal.
+- FindByOrderID returns (nil, nil) when nothing exists.
+- There is no sandbox. First safe live call: c.Project.Get(ctx). Tests: httptest.NewTLSServer + WithHTTPClient(srv.Client()) + SignWebhook.
+- One Client per process, safe for concurrent use. Keys never print (fmt shows [redacted]).
+
+## Setup
+c, err := enigmoss.NewClient("https://api.example.com", projectID, enigmoss.WithPaymentKey(os.Getenv("ENIGMOSS_PAYMENT_KEY")), enigmoss.WithPayoutKey(os.Getenv("ENIGMOSS_PAYOUT_KEY")))
+Options: WithPaymentKey(string), WithPayoutKey(string), WithHTTPClient(*http.Client) (proxy, mTLS, tests; redirects are never followed). Helpers: enigmoss.Bool(b) *bool, enigmoss.Int(n) *int.
+
+## Methods (ctx first; Create/Get return (*T, error); List returns (*Page[T], error); All returns iter.Seq2[*T, error])
+c.Project.Get(ctx) -> Project{ID, Name, KeyType, Permissions []string, ServerTime int64}
+c.Payments: Create(ctx, *PaymentParams) | Get(ctx, id) | FindByOrderID(ctx, orderID) | List/All(ctx, *PaymentQuery) | Cancel(ctx, id) | MarkPaid(ctx, id) | CreateAMLVerificationLinks(ctx, id) ([]*AMLVerificationLink)
+  PaymentParams{Amount, CurrencyCode, OrderID (required); SettlementCurrencyCode, NetworkCode, ReturnURL, SuccessURL, CallbackURL, ExpiresIn 300-43200, AllowMultiplePayments *bool, CustomerFeePercent *int 0-100, UnderpaymentTolerancePercent "0"-"5.00", DiscountPercent *int -99..90, AllowedMethods/ExcludedMethods []PaymentMethodRef{CurrencyCode, NetworkCode}, CustomerEmail, Metadata map[string]any, Description <=150, Theme "light"|"dark"|"system", ReferralCode}
+  PaymentQuery{OrderID, WalletID, Status, CreatedFrom, CreatedTo, Limit 1-50, Cursor}
+  Payment{ID, OrderID, WalletID, Status, IsFinal, FailureCode, Amount, CurrencyCode, Payer{Amount, CurrencyCode, NetworkCode, Address, SenderAddress, ExchangeRate}, Paid{Amount, AmountUSD}, Settlement{Amount, CurrencyCode, Fee}, Conversion *{From{Amount, CurrencyCode, NetworkCode}, To{CurrencyCode}, Rate}, Discount{Percent *int, Amount}, TxHash, PaymentURL, ExpiresAt, CreatedAt, UpdatedAt, PaidAt, Description, Metadata}; IsSuccessful(), IsDeposit()
+  A new invoice after expired/cancelled needs a NEW order_id (<order>-<attempt>).
+c.Wallets: Create(ctx, *WalletParams{CurrencyCode, NetworkCode, OrderID, CallbackURL, ReferralCode}) | Get | FindByOrderID | List/All(ctx, *WalletQuery{OrderID, Status, CurrencyCode, NetworkCode, CreatedFrom, CreatedTo, Limit 1-50, Cursor}) | Block(ctx, id, refundIncoming bool) (fixed at the first block)
+  Wallet{ID, OrderID, CurrencyCode, NetworkCode, Address, Status, RefundIncoming, CallbackURL, PaymentURL, CreatedAt, UpdatedAt}. Deposits: c.Payments.List(ctx, &PaymentQuery{WalletID: id}).
+c.Refunds (payout key, 1/min): CreateForPayment(ctx, paymentID, *PaymentRefundParams{OrderID, Address, Amount ("" = all), FeeDeductedFromAmount *bool, CallbackURL}) | CreateForWallet(ctx, walletID, *WalletRefundParams{OrderID, Address, CallbackURL}) | Get | FindByOrderID | List/All(ctx, *RefundQuery{OrderID, Source, Status, PaymentID, WalletID, CreatedFrom, CreatedTo, Limit 1-100, Cursor})
+  Refund{ID, OrderID, Source, PaymentID, WalletID, Status, IsFinal, FailureCode, Amount, CurrencyCode, NetworkCode, Address, TxHash, CreatedAt, UpdatedAt, CompletedAt}. Block + refund of a wallet needs BOTH keys.
+c.Payouts (payout key, 10/min): Quote(ctx, *PayoutQuoteParams) (*PayoutQuote) NOT binding | Create(ctx, *PayoutParams) | Get | FindByOrderID | List/All(ctx, *PayoutQuery{OrderID, Status, CreatedFrom, CreatedTo, Limit 1-100, Cursor})
+  PayoutParams{OrderID, Amount, CurrencyCode, Address (required); NetworkCode, Memo <=64, RecipientCurrencyCode, SourceCurrencyCode, FeeDeductedFromAmount *bool, RateSource "Binance"|"BinanceP2p"|"Exmo"|"Garantexio"|"Kucoin", Priority, CallbackURL <=150}
+  Payout{ID, OrderID, Status, IsFinal, FailureCode, Amount, CurrencyCode, NetworkCode, Address, Memo, Priority, Recipient{Amount, CurrencyCode}, Charged{Amount, CurrencyCode, Fee}, Conversion *{SourceCurrencyCode, SourceAmount, Fee, Rate}, TxHash, CreatedAt, UpdatedAt}. Check Charged after Create.
+c.Transfers (payout key): Create(ctx, *TransferParams{OrderID, Amount <=8 decimals, CurrencyCode}) | Get | FindByOrderID | List/All(ctx, *TransferQuery{OrderID, Limit 1-50, Cursor}). Synchronous: returned = moved.
+c.Balances.List(ctx) []*Balance{CurrencyCode, Balance, BalanceUSD}
+c.Transactions.List/All(ctx, *TransactionQuery{Type, CreatedFrom, CreatedTo, Limit 1-50, Cursor}) -> Transaction{ID, Type, Amount (negative = debit), Fee, CurrencyCode, NetworkCode, PaymentID, PayoutID, RefundID, TransferID, CreatedAt}
+c.PaymentMethods.List(ctx) []*PaymentMethod{CurrencyCode, NetworkCode, IsEnabled, DiscountPercent} | UpdateDiscount(ctx, currency, network, percent -99..90) (payment key)
+c.PayoutMethods.List(ctx) []*PayoutMethod | Get(ctx, currency, network) *PayoutMethodDetails{MinAmount, MaxAmount, Decimals, IsMemoAvailable, Priorities}
+c.ExchangeRates.List(ctx, from) []*ExchangeRate{From, To, Rate}
+c.Events (payment key, 60 days): List/All(ctx, *EventQuery{Event, ObjectType, ObjectID, DeliveryStatus, CreatedFrom, CreatedTo, Limit 1-100, Cursor}) | Get(ctx, id) | Redeliver(ctx, id) | RedeliverBulk(ctx, *BulkRedeliverParams{CreatedFrom (required), CreatedTo, Event, ObjectType, ObjectID, DeliveryStatus}) (*BulkRedeliveryResult)
+  EventRecord{ID, Type, ObjectType, ObjectID, DeliveryStatus, CreatedAt, Payload Event, Attempts}. Replay: for rec, err := range c.Events.All(ctx, &enigmoss.EventQuery{DeliveryStatus: enigmoss.DeliveryFailed}) { handle(rec.Payload) }
+c.Webhooks.SendTest(ctx, callbackURL) (*EventRecord), 10/min, never retried.
+Page[T]{Items []*T, NextCursor, HasMore}: next page = same query with Cursor: page.NextCursor.
+
+## Statuses (IsFinal comes from the server)
+Payment: PaymentPending PaymentProcessing PaymentConfirming PaymentUnderpaidWaiting PaymentLocked PaymentRefunding never final; PaymentPaid PaymentOverpaid PaymentUnderpaid may be non-final; PaymentExpired PaymentCancelled PaymentFailed PaymentRefunded PaymentRefundFailed typically final.
+Payout: PayoutPending PayoutProcessing PayoutAwaitingApproval never final; PayoutCompleted PayoutFailed PayoutCancelled typically final. Failed/cancelled: not paid out, order_id used up.
+Refund: RefundPending RefundProcessing never final; RefundCompleted RefundFailed typically final.
+Wallet: WalletActive WalletBlocked WalletInactive. Priority: PriorityRecommended PriorityEconomy PriorityHigh PriorityHighest.
+Unknown value: read IsFinal, log, do not act.
+
+## Errors
+*enigmoss.Error{Status (0 = no response), Code, Message, RequestID, Fields map[string]string}; Error() = "<message> [<code>, request <id>] <hint>"; errors.Unwrap = net/http error.
+Errors before sending (bad amount, order_id, UUID, missing key) are plain errors: nothing was sent.
+OutcomeUnknown(err): sent and broken, 5xx, idempotency.in_progress, unreadable 2xx, or an earlier attempt of the call may have run.
+IsOrderIDTaken(err): resource.conflict for an order_id already used. Never treat another conflict as "taken".
+Codes: enigmoss.Code* constants, e.g. CodeValidationFailed, CodePayoutInsufficientFunds, CodeRateLimitExceeded, CodeIPForbidden, CodePermissionDenied, CodeSignatureInvalid (wrong key type?). Proxy page without the API body: Code "http.<status>". Switch on Code, never on Message; keep a default.
+
+## Snippets
+p, err := c.Payouts.Create(ctx, params)
+switch {
+case err == nil: // created: save p.ID, wait for the payout.* webhook
+case enigmoss.OutcomeUnknown(err): // maybe created: keep "pending", reconcile later with FindByOrderID; never a new order_id
+case enigmoss.IsOrderIDTaken(err): p, err = c.Payouts.FindByOrderID(ctx, params.OrderID)
+default: // definitely not created: fix the cause and retry with the SAME order_id
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	ev, err := enigmoss.ParseWebhook(r, projectID, paymentKey) // several keys during rotation
+	if err != nil { w.WriteHeader(400); return }
+	// claim ev.ID: INSERT ... ON CONFLICT DO NOTHING; already claimed -> 200; on a processing error delete the claim and answer 500
+	if ev.Type == "payment.paid" { p, err := ev.Payment(); if err == nil && p.IsSuccessful() { fulfil(p.OrderID) } }
+	w.WriteHeader(200) // within 15 s; queue heavy work. Up to 9 attempts over ~2 days; events may arrive out of order.
+}
+Event{ID, Type, CreatedAt, Data json.RawMessage}; ev.Payment() / ev.Payout() / ev.Refund() parse on demand. Unknown types: acknowledge with 200.
+Tests: req.Header = enigmoss.SignWebhook(body, projectID, paymentKey).

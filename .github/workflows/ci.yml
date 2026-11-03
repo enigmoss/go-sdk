@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Format, vet, linters, vulnerabilities, hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+      - run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: No dependencies
+        run: test -z "$(go list -m all | grep -v '^github.com/enigmoss/enigmoss-go$')"
+      - name: Fuzz smoke
+        run: go test -run '^$' -fuzz FuzzWebhook -fuzztime 30s .
+      - name: Hygiene
+        env:
+          # Extended regular expression of internal names that must never appear in the repository.
+          INTERNAL_NAMES: ${{ vars.INTERNAL_NAMES }}
+        run: |
+          # The word is spelled in two parts so that this file passes its own check; LICENSE is
+          # excluded for the standard MIT wording.
+          if grep -rniI --exclude-dir=.git --exclude=LICENSE -e "mer""chant" .; then exit 1; fi
+          if [ -n "$INTERNAL_NAMES" ] && grep -rniIE --exclude-dir=.git -e "$INTERNAL_NAMES" .; then exit 1; fi
+
+  tests:
+    name: Go ${{ matrix.go }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ['1.24', '1.25', '1.26', '1.27']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+      - run: go test -race ./...
