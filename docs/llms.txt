@@ -42,7 +42,7 @@ c.PayoutMethods.List(ctx) []*PayoutMethod | Get(ctx, currency, network) *PayoutM
 c.ExchangeRates.List(ctx, from) []*ExchangeRate{From, To, Rate}
 c.Events (payment key, 60 days): List/All(ctx, *EventQuery{Event, ObjectType, ObjectID, DeliveryStatus, CreatedFrom, CreatedTo, Limit 1-100, Cursor}) | Get(ctx, id) | Redeliver(ctx, id) | RedeliverBulk(ctx, *BulkRedeliverParams{CreatedFrom (required), CreatedTo, Event, ObjectType, ObjectID, DeliveryStatus}) (*BulkRedeliveryResult)
   EventRecord{ID, Type, ObjectType, ObjectID, DeliveryStatus, CreatedAt, Payload Event, Attempts}. Replay: for rec, err := range c.Events.All(ctx, &enigmoss.EventQuery{DeliveryStatus: enigmoss.DeliveryFailed}) { handle(rec.Payload) }
-c.Webhooks.SendTest(ctx, callbackURL) (*EventRecord), 10/min, never retried.
+c.Webhooks.SendTest(ctx, callbackURL) (*EventRecord), 10/min, never retried. Delivery is queued: the returned attempt is usually "pending"; check later with c.Events.Get(ctx, rec.ID).
 Page[T]{Items []*T, NextCursor, HasMore}: next page = same query with Cursor: page.NextCursor.
 
 ## Statuses (IsFinal comes from the server)

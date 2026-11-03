@@ -68,8 +68,9 @@ for rec, err := range c.Events.All(ctx, &enigmoss.EventQuery{DeliveryStatus: eni
 
 ## Check your endpoint
 
-- `c.Webhooks.SendTest(ctx, "https://shop.example/webhooks/enigmoss")` sends a `webhook.test` event
-  and returns your endpoint's response.
+- `c.Webhooks.SendTest(ctx, "https://shop.example/webhooks/enigmoss")` queues a `webhook.test`
+  event. The delivery is asynchronous: the returned attempt is usually still `pending`, so read the
+  result and your endpoint's response a few seconds later with `c.Events.Get(ctx, rec.ID)`.
 - Without a tunnel, sign a body yourself and post it to your local server:
 
 ```go

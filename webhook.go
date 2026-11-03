@@ -204,9 +204,10 @@ var epWebhookTest = unsafePost("/webhooks/test", scopePayment, "test webhooks")
 // WebhookService sends test webhooks. It needs the payment key and the permission webhooks.
 type WebhookService struct{ c *core }
 
-// SendTest sends a webhook.test event once, without retries, to callbackURL or, when it is
-// "", to the default URL of the project. It returns the event with the delivery attempt and
-// your endpoint's response. POST /api/v4/webhooks/test, 10 per minute.
+// SendTest queues a webhook.test event to callbackURL or, when it is "", to the default URL
+// of the project. It is sent once, without retries. The returned event usually has its first
+// attempt still pending: read the delivery status and your endpoint's response later with
+// Events.Get. POST /api/v4/webhooks/test, 10 per minute.
 func (s *WebhookService) SendTest(ctx context.Context, callbackURL string) (*EventRecord, error) {
 	var body any
 	if callbackURL != "" {
