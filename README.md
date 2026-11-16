@@ -6,7 +6,7 @@ send payouts and refunds, and receive signed webhooks.
 [![Go Reference](https://pkg.go.dev/badge/github.com/enigmoss/enigmoss-go.svg)](https://pkg.go.dev/github.com/enigmoss/enigmoss-go)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-- **Small surface.** `NewClient` with three options, resource methods that take a `context.Context`,
+- **Small surface.** `NewClient` with a handful of options, resource methods that take a `context.Context`,
   one error type with two checks for money logic, one function for webhooks.
 - **Money-safe inside.** Request signatures, an `Idempotency-Key` derived from your `order_id`,
   retries only when they cannot pay twice, long enough timeouts for payouts, clock correction.

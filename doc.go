@@ -38,5 +38,11 @@
 // enough for payouts and corrects a drifting clock. None of it needs configuration. There is
 // no sandbox: the first safe call against the live API is c.Project.Get(ctx).
 //
+// # Fallback API host
+//
+// Optional: with WithFallbackBaseURL the client asks a fallback host where the API is now
+// when the API host cannot be reached (after the usual retries, and only when the last
+// attempt could not connect), and moves there. WithOnOriginChange reports every move.
+//
 // The rules, all signatures and the statuses are also in docs/llms.txt of the module.
 package enigmoss
