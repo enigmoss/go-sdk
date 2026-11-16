@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/enigmoss/enigmoss-go"
+	"github.com/enigmoss/go-sdk"
 )
 
 const projectID = "3f2b8c1e-5d4a-4e7b-9c6f-1a2b3c4d5e6f"

@@ -3,7 +3,7 @@
 The official Go SDK of the Enigmoss Project API v4: accept crypto payments, run static wallets,
 send payouts and refunds, and receive signed webhooks.
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/enigmoss/enigmoss-go.svg)](https://pkg.go.dev/github.com/enigmoss/enigmoss-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/enigmoss/go-sdk.svg)](https://pkg.go.dev/github.com/enigmoss/go-sdk)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 - **Small surface.** `NewClient` with a handful of options, resource methods that take a `context.Context`,
@@ -16,7 +16,7 @@ send payouts and refunds, and receive signed webhooks.
 ## Install
 
 ```bash
-go get github.com/enigmoss/enigmoss-go
+go get github.com/enigmoss/go-sdk
 ```
 
 ## Which key you need
@@ -116,7 +116,7 @@ The API has no test mode. Develop against a fake API with `httptest.NewTLSServer
 - [Testing](docs/testing.md)
 - [docs/llms.txt](docs/llms.txt): the rules and every signature on one page, for AI coding assistants.
 
-The API reference is `go doc github.com/enigmoss/enigmoss-go`.
+The API reference is `go doc github.com/enigmoss/go-sdk`.
 
 ## License
 

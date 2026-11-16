@@ -29,7 +29,7 @@ jobs:
       - run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - name: No dependencies
-        run: test -z "$(go list -m all | grep -v '^github.com/enigmoss/enigmoss-go$')"
+        run: test -z "$(go list -m all | grep -v '^github.com/enigmoss/go-sdk$')"
       - name: Fuzz smoke
         run: go test -run '^$' -fuzz FuzzWebhook -fuzztime 30s .
       - name: Hygiene

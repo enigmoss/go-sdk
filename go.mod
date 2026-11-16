@@ -1,3 +1,3 @@
-module github.com/enigmoss/enigmoss-go
+module github.com/enigmoss/go-sdk
 
 go 1.24

@@ -6,6 +6,8 @@ All notable changes to this module are documented here. The format follows
 
 ## [Unreleased]
 
+- **The module path is `github.com/enigmoss/go-sdk`** (it was `github.com/enigmoss/enigmoss-go`), the address of
+  the repository: `go get github.com/enigmoss/go-sdk`. The package name is still `enigmoss`.
 - `Error.RetryAfter`: how long the server asked to wait (Retry-After) on a rate limit.
 - Fallback API host, off by default (and with an empty URL): `WithFallbackBaseURL` and
   `WithOnOriginChange` with `OriginChange`. When the usual retries are used up and the last attempt

@@ -1,6 +1,6 @@
-# Enigmoss Go SDK (github.com/enigmoss/enigmoss-go), for AI coding assistants
-Package enigmoss. Go >= 1.24, standard library only. Project API v4. Docs: README.md, docs/*.md, `go doc github.com/enigmoss/enigmoss-go`.
-Find this file in the module cache: $(go list -m -f '{{.Dir}}' github.com/enigmoss/enigmoss-go)/docs/llms.txt
+# Enigmoss Go SDK (github.com/enigmoss/go-sdk), for AI coding assistants
+Package enigmoss. Go >= 1.24, standard library only. Project API v4. Docs: README.md, docs/*.md, `go doc github.com/enigmoss/go-sdk`.
+Find this file in the module cache: $(go list -m -f '{{.Dir}}' github.com/enigmoss/go-sdk)/docs/llms.txt
 
 ## Rules that must not be broken
 - Money is ALWAYS a decimal string ("10.50"), never float64. The SDK sends and returns amounts as is. Times are time.Time in UTC; zero = absent.

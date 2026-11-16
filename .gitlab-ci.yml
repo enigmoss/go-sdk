@@ -1,4 +1,4 @@
-# CI of github.com/enigmoss/enigmoss-go: the same commands as .github/workflows.
+# CI of github.com/enigmoss/go-sdk: the same commands as .github/workflows.
 
 stages: [quality, test, release]
 
@@ -23,7 +23,7 @@ quality:
     - go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
     - go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
     - go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
-    - test -z "$(go list -m all | grep -v '^github.com/enigmoss/enigmoss-go$')"
+    - test -z "$(go list -m all | grep -v '^github.com/enigmoss/go-sdk$')"
     - go test -run '^$' -fuzz FuzzWebhook -fuzztime 30s .
 
 hygiene:
