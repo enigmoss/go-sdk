@@ -39,6 +39,7 @@ type Error struct {
 	cause         error
 	unknown       bool // the request may have been executed
 	sent          bool // transport failure after the headers were written
+	unreachable   bool // transport failure: no connection to the API host was established
 	envelope      bool // the body was the API error envelope
 	retryable     bool
 	retryAfter    int

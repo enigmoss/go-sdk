@@ -129,7 +129,8 @@ type core struct {
 	payoutKey  secret
 	http       *http.Client
 	userAgent  string
-	clockSkew  atomic.Int64 // seconds added to the local clock; the only mutable state
+	clockSkew  atomic.Int64 // seconds added to the local clock
+	fb         originFallback
 
 	now    func() time.Time
 	sleep  func(context.Context, time.Duration) error
@@ -176,9 +177,10 @@ func (c *core) do(ctx context.Context, cl call) (*response, error) {
 		}
 	}
 	requestURI := buildRequestURI(ep, cl.params, cl.query)
-	u, err := url.Parse(c.origin + requestURI)
-	if err != nil || u.RequestURI() != requestURI {
-		return nil, fmt.Errorf("enigmoss: cannot send the request URI %q unchanged", requestURI)
+	origin := c.activeOrigin()
+	u, err := requestURL(origin, requestURI)
+	if err != nil {
+		return nil, err
 	}
 
 	var body []byte
@@ -205,6 +207,7 @@ func (c *core) do(ctx context.Context, cl call) (*response, error) {
 		attempt        int
 		clockCorrected bool
 		mayHaveRun     bool // an earlier attempt of this series may have been executed
+		fellBack       bool // the fallback host is asked at most once per call
 	)
 	for {
 		attempt++
@@ -238,35 +241,81 @@ func (c *core) do(ctx context.Context, cl call) (*response, error) {
 		if mayHaveRun && ep.class == classMoney && !apiErr.orderIDTaken() {
 			apiErr.unknown = true
 		}
+		// The API host could not be reached and the retries did not help: ask the fallback
+		// host where the API is now and repeat the request there. Nothing of the request
+		// was sent in this attempt; the same body and Idempotency-Key go to the new origin.
+		if !fellBack && c.fallbackAllowed(ctx, apiErr, deadline) {
+			fellBack = true
+			next, fallbackErr := c.fallback(ctx, origin, apiErr, deadline)
+			if fallbackErr != nil {
+				return nil, fallbackErr
+			}
+			if next != "" {
+				if moved, err := requestURL(next, requestURI); err == nil {
+					origin, u, attempt = next, moved, 0
+					continue
+				}
+			}
+		}
 		return nil, apiErr
 	}
 }
 
+// requestURL joins an origin and a request URI, and checks that the URI is sent as signed.
+func requestURL(origin, requestURI string) (*url.URL, error) {
+	u, err := url.Parse(origin + requestURI)
+	if err != nil || u.RequestURI() != requestURI {
+		return nil, fmt.Errorf("enigmoss: cannot send the request URI %q unchanged", requestURI)
+	}
+	return u, nil
+}
+
 // attempt sends the request once. A returned error is always an *Error.
 func (c *core) attempt(ctx context.Context, ep *endpoint, u *url.URL, requestURI string, key secret, body []byte, idemKey string) (*response, *Error) {
-	ctx, cancel := context.WithTimeout(ctx, ep.timeout)
+	x, apiErr := c.exchange(ctx, ep.method, ep.timeout, u, requestURI, key, body, idemKey)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+	if x.res.StatusCode >= 200 && x.res.StatusCode < 300 {
+		return parseSuccess(x.res, x.raw)
+	}
+	return nil, mapError(x.res, x.raw)
+}
+
+// exchanged is a response read to the end.
+type exchanged struct {
+	res       *http.Response // the status and the headers; the body is in raw
+	raw       []byte
+	signature string // X-Signature of the request; the signature of a response covers it
+}
+
+// exchange signs and sends one request and reads the whole response, whatever its status.
+// A returned error is a transport failure or a response that is too large.
+func (c *core) exchange(ctx context.Context, method string, timeout time.Duration, u *url.URL, requestURI string, key secret, body []byte, idemKey string) (*exchanged, *Error) {
+	attemptCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// Written headers mean the server may execute the request: only an error before that
 	// point proves the request was not sent.
-	var sent atomic.Bool
-	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{WroteHeaders: func() { sent.Store(true) }})
+	var trace attemptTrace
+	attemptCtx = httptrace.WithClientTrace(attemptCtx, trace.hooks(u, c.fb.origin != ""))
 
 	var reader io.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(ctx, ep.method, u.String(), reader)
+	req, err := http.NewRequestWithContext(attemptCtx, method, u.String(), reader)
 	if err != nil {
 		return nil, &Error{Message: "The request could not be built: " + err.Error() + ".", cause: err}
 	}
 	req.URL = u
 	timestamp := strconv.FormatInt(c.now().Unix()+c.clockSkew.Load(), 10)
+	signature := signRequest(key(), timestamp, c.projectID, method, requestURI, body)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.userAgent)
 	req.Header.Set("X-Project-Uuid", c.projectID)
 	req.Header.Set("X-Timestamp", timestamp)
-	req.Header.Set("X-Signature", signRequest(key(), timestamp, c.projectID, ep.method, requestURI, body))
+	req.Header.Set("X-Signature", signature)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -276,7 +325,9 @@ func (c *core) attempt(ctx context.Context, ep *endpoint, u *url.URL, requestURI
 
 	res, err := c.http.Do(req)
 	if err != nil {
-		return nil, transportError(err, sent.Load())
+		apiErr := transportError(err, trace.sent.Load())
+		apiErr.unreachable = c.fb.origin != "" && trace.hostUnreachable(err, attemptCtx, ctx)
+		return nil, apiErr
 	}
 	defer func() { _ = res.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes+1))
@@ -286,10 +337,7 @@ func (c *core) attempt(ctx context.Context, ep *endpoint, u *url.URL, requestURI
 	if len(raw) > maxResponseBytes {
 		return nil, &Error{Status: res.StatusCode, RequestID: res.Header.Get("X-Request-Id"), Message: "The response is larger than 32 MiB.", unknown: res.StatusCode < 300}
 	}
-	if res.StatusCode >= 200 && res.StatusCode < 300 {
-		return parseSuccess(res, raw)
-	}
-	return nil, mapError(res, raw)
+	return &exchanged{res: res, raw: raw, signature: signature}, nil
 }
 
 func transportError(err error, sent bool) *Error {

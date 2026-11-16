@@ -61,6 +61,8 @@ type Option func(*options)
 type options struct {
 	paymentKey, payoutKey secret
 	httpClient            *http.Client
+	fallbackOrigin        string
+	onOriginChange        func(OriginChange)
 	errs                  []error
 }
 
@@ -100,6 +102,50 @@ func WithHTTPClient(hc *http.Client) Option {
 			return
 		}
 		o.httpClient = hc
+	}
+}
+
+// WithFallbackBaseURL sets the fallback API host: the host the SDK asks where the API is
+// now when the API host itself cannot be reached. It has the same form as baseURL. Without
+// this option, or with an empty fallbackURL (an unset environment variable), the fallback
+// is off.
+//
+// The fallback is the last step of a call, after the usual retries: when the last attempt
+// again could not connect to the API host (DNS, connect or TLS handshake; never a response
+// timeout, a connection lost after sending, a cancelled context or a proxy failure), the
+// SDK sends one signed request to the fallback host. A new origin from a response signed
+// with your key is remembered for the time the response allows (1 hour to 7 days), and
+// the call is repeated there with the same body and Idempotency-Key. Any other answer of
+// the fallback host is returned as the error of the call, with the network error as its
+// cause, and the fallback host is not asked again for 5 minutes.
+func WithFallbackBaseURL(fallbackURL string) Option {
+	return func(o *options) {
+		if strings.TrimSpace(fallbackURL) == "" {
+			o.fallbackOrigin = ""
+			return
+		}
+		origin, err := normalizeBaseURL(fallbackURL)
+		if err != nil {
+			o.errs = append(o.errs, fmt.Errorf("enigmoss: WithFallbackBaseURL: %s", strings.TrimPrefix(err.Error(), "enigmoss: ")))
+			return
+		}
+		o.fallbackOrigin = origin
+	}
+}
+
+// WithOnOriginChange sets a function that is called every time the client moves to
+// another API origin named by the fallback host (see WithFallbackBaseURL): log it, alert,
+// update your configuration.
+//
+// It is called once per move, from a goroutine of the SDK, before the calls that waited
+// for the new origin continue: keep it fast. A panic of the function is dropped.
+func WithOnOriginChange(fn func(OriginChange)) Option {
+	return func(o *options) {
+		if fn == nil {
+			o.errs = append(o.errs, errors.New("enigmoss: WithOnOriginChange: the function is nil"))
+			return
+		}
+		o.onOriginChange = fn
 	}
 }
 
@@ -150,6 +196,8 @@ func NewClient(baseURL, projectID string, opts ...Option) (*Client, error) {
 		sleep:      sleepContext,
 		random:     rand.Float64,
 	}
+	cr.fb.origin = o.fallbackOrigin
+	cr.fb.onChange = o.onOriginChange
 	return &Client{
 		Project:        &ProjectService{cr},
 		Payments:       &PaymentService{cr},
@@ -168,12 +216,13 @@ func NewClient(baseURL, projectID string, opts ...Option) (*Client, error) {
 	}, nil
 }
 
-// String describes the client without its keys.
+// String describes the client without its keys. The origin is the one requests go to
+// now: the base URL, or the origin the fallback host named (see WithFallbackBaseURL).
 func (c *Client) String() string {
 	if c == nil || c.c == nil {
 		return "enigmoss.Client(nil)"
 	}
-	return fmt.Sprintf("enigmoss.Client{%s, project %s, keys [redacted]}", c.c.origin, c.c.projectID)
+	return fmt.Sprintf("enigmoss.Client{%s, project %s, keys [redacted]}", c.c.activeOrigin(), c.c.projectID)
 }
 
 // Format prints the client without its keys for every verb, %+v and %#v included.
