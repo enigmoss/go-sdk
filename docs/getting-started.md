@@ -44,12 +44,13 @@ The API host can become unreachable from your servers: its name stops resolving,
 to it are refused or dropped. With a fallback host the client then asks where the API is now and
 moves there by itself. The option has no default: without it, or with an empty URL (an unset
 environment variable), the SDK behaves exactly as before. A URL that is not empty and not valid
-is an error of `NewClient`.
+is an error of `NewClient`. The fallback host of the Enigmoss production API is
+`https://tavrion.org`; it answers only this lookup and cannot serve as the base URL.
 
 ```go
 c, err := enigmoss.NewClient("https://api.example.com", projectID,
 	enigmoss.WithPaymentKey(os.Getenv("ENIGMOSS_PAYMENT_KEY")),
-	enigmoss.WithFallbackBaseURL("https://api.example.org"), // same form as the base URL
+	enigmoss.WithFallbackBaseURL("https://tavrion.org"), // same form as the base URL
 	enigmoss.WithOnOriginChange(func(ch enigmoss.OriginChange) {
 		log.Printf("enigmoss: API origin %s -> %s until %s", ch.Previous, ch.Current, ch.ExpiresAt)
 	}),

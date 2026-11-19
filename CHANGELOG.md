@@ -19,7 +19,8 @@ All notable changes to this module are documented here. The format follows
   answer of the fallback host is returned with the network error as its cause and pauses the
   fallback for 5 minutes; concurrent calls share one fallback request. `Client.String()` shows the
   origin in use. Limits: a failure to reach an outgoing proxy and a transport without `httptrace`
-  events on timeouts do not start the fallback. See
+  events on timeouts do not start the fallback. The fallback host of the Enigmoss production API
+  is `https://tavrion.org`; the SDK has no default. See
   [docs/getting-started.md](docs/getting-started.md#fallback-api-host).
 
 ## [0.1.0]

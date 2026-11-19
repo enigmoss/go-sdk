@@ -43,6 +43,7 @@
 // Optional: with WithFallbackBaseURL the client asks a fallback host where the API is now
 // when the API host cannot be reached (after the usual retries, and only when the last
 // attempt could not connect), and moves there. WithOnOriginChange reports every move.
+// The fallback host of the Enigmoss production API is https://tavrion.org; there is no default.
 //
 // The rules, all signatures and the statuses are also in docs/llms.txt of the module.
 package enigmoss
