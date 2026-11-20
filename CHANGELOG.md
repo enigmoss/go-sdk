@@ -6,6 +6,10 @@ All notable changes to this module are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0]
+
+First beta of the Go SDK of the Project API v4.
+
 - **The module path is `github.com/enigmoss/go-sdk`** (it was `github.com/enigmoss/enigmoss-go`), the address of
   the repository: `go get github.com/enigmoss/go-sdk`. The package name is still `enigmoss`.
 - `Error.RetryAfter`: how long the server asked to wait (Retry-After) on a rate limit.
@@ -22,10 +26,6 @@ All notable changes to this module are documented here. The format follows
   events on timeouts do not start the fallback. The fallback host of the Enigmoss production API
   is `https://tavrion.org`; the SDK has no default. See
   [docs/getting-started.md](docs/getting-started.md#fallback-api-host).
-
-## [0.1.0]
-
-First beta of the Go SDK of the Project API v4.
 
 - `NewClient` with `WithPaymentKey`, `WithPayoutKey` and `WithHTTPClient`.
 - All 34 operations of the API, with `List` and lazy `All` pagination.
