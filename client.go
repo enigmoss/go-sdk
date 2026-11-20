@@ -12,7 +12,7 @@ import (
 )
 
 // Version is the version of this SDK, sent in the User-Agent header.
-const Version = "0.1.0"
+const Version = "1.0.0"
 
 const apiPrefix = "/api/v4"
 

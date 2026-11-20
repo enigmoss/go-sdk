@@ -6,6 +6,10 @@ All notable changes to this module are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0]
+
+Stable release of the Enigmoss Project API v4 SDK.
+
 ## [0.1.0]
 
 First beta of the Go SDK of the Project API v4.
